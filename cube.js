@@ -7,6 +7,8 @@ var vertices;
 var program;
 
 var rotationAngle = 0;
+var uniformModelViewLocation;
+var uniformProjectionLocation;
 var uniformRotationLocation;
 var uniformLineFlagLocation;
 
@@ -146,6 +148,8 @@ window.onload = function init()
     program = initShaders( gl, "vertex-shader", "fragment-shader" );
     gl.useProgram( program );
     // Load the data into the GPU
+    uniformModelViewLocation = gl.getUniformLocation(program, "modelViewMatrix");
+    uniformProjectionLocation = gl.getUniformLocation(program, "projectionMatrix");
     uniformRotationLocation = gl.getUniformLocation(program, "rotationMatrix");
 
     var verticesBufferId = gl.createBuffer();
@@ -166,6 +170,19 @@ window.onload = function init()
     gl.enableVertexAttribArray( vColor );
 
     uniformLineFlagLocation = gl.getUniformLocation(program, "lines");
+
+    var eye = vec3(0,0,-6);
+    var at = vec3(0,0,1);
+    var up = vec3(0,1,0);
+    var modelViewMatrix = lookAt(eye,at,up);
+
+    var aspectRatio = canvas.width/canvas.height;
+    var projectionMatrix = perspective( 30.0, aspectRatio, 1.0, 1000.0 );
+
+
+    gl.uniformMatrix4fv(uniformModelViewLocation, false, flatten(modelViewMatrix));
+    gl.uniformMatrix4fv(uniformProjectionLocation, false, flatten(projectionMatrix));
+
     renderCube();
 };
 
@@ -240,8 +257,14 @@ function renderLines()
             0.0,0.0,0.0, //24
             1.0,0.0,0.0, //25
             0.0,1.0,0.0, //26
-            0.0,0.0,1.0 //27
+            0.0,0.0,1.0, //27
 
+
+            1.0,-0.5,-10, //28
+            1.0,-0.5,10, //29
+
+            -1.0,-0.5,-10, //30
+            -1.0,-0.5,10, //31
         ];
 
     var linesIndices = new Uint16Array(
@@ -275,7 +298,10 @@ function renderLines()
 
           24,25,
           24,26,
-          24,27
+          24,27,
+
+          28,29,
+          30,31
         ]);
 
 
