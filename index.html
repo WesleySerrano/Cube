@@ -7,6 +7,8 @@
 attribute vec4 vPosition;
 attribute vec4 attributeVColor;
 
+uniform mat4 cubeRotation;
+
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 uniform mat4 rotationMatrix;
@@ -19,17 +21,26 @@ main()
 {
     mat4 transformationMatrix = rotationMatrix;
 
-    if(lines == 0)vColor = attributeVColor;
+    if(lines == 0)
+    {
+       vColor = attributeVColor;
+       transformationMatrix = cubeRotation * transformationMatrix;
+    }
     else if(abs(vPosition.z) > 1.0)
     {
       vColor = vec4(1.0);
     }
     else if(vPosition.x == 0.0 || vPosition.y == 0.0 || vPosition.z == 0.0)
     {
+       transformationMatrix = cubeRotation * transformationMatrix;
        vColor.rgb = vPosition.rgb;
        vColor.a = 1.0;
     }
-    else vColor = vec4(0.0,0.0,0.0,1.0);
+    else
+    {
+      vColor = vec4(0.0,0.0,0.0,1.0);
+      transformationMatrix = cubeRotation * transformationMatrix;
+    }
 
     gl_Position = projectionMatrix*modelViewMatrix*transformationMatrix*vPosition;
 }
@@ -56,5 +67,12 @@ main()
 <canvas id="gl-canvas" width="800" height="800">
     Oops ... your browser doesn't support the HTML5 canvas element
 </canvas>
+<br>
+<input id="perspectiveCheckBox" type="checkbox" onchange="changeProjection()" name="projection" value="perspective">Perspectiva<br>
+<input id="worldRotationCheckBox" type="checkbox" name="worldRotation" checked value="worldRotation">Rotacionar o mundo<br>
+<button id = "ButtonX" onclick="worldRotateX()">Rotaciona X</button>
+<button id = "ButtonY" onclick="worldRotateY()">Rotaciona Y</button>
+<button id = "ButtonZ" onclick="worldRotateZ()">Rotaciona Z</button>
+
 </body>
 </html>

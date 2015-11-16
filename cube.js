@@ -12,6 +12,28 @@ var uniformProjectionLocation;
 var uniformRotationLocation;
 var uniformLineFlagLocation;
 
+var perspectiveMatrix;
+var orthoMatrix;
+
+var cubeRotationAngles = [0,0,0];
+var cubeCurrentRotationAxis = 1;
+var uniformCubeRotationLocation;
+
+function worldRotateX()
+{
+    cubeCurrentRotationAxis = 0;
+}
+
+function worldRotateY()
+{
+    cubeCurrentRotationAxis = 1;
+}
+
+function worldRotateZ()
+{
+    cubeCurrentRotationAxis = 2;
+}
+
 window.onload = function init()
 {
     var canvas = document.getElementById( "gl-canvas" );
@@ -79,7 +101,7 @@ window.onload = function init()
 
             0.5, -0.5, -0.5,
             0.5, 0.5, -0.5,
-            -0.5, 0.5, -0.5,
+            -0.5, 0.5, -0.5
             /************/
 
         ];
@@ -151,6 +173,7 @@ window.onload = function init()
     uniformModelViewLocation = gl.getUniformLocation(program, "modelViewMatrix");
     uniformProjectionLocation = gl.getUniformLocation(program, "projectionMatrix");
     uniformRotationLocation = gl.getUniformLocation(program, "rotationMatrix");
+    uniformCubeRotationLocation = gl.getUniformLocation(program, "cubeRotation");
 
     var verticesBufferId = gl.createBuffer();
     gl.bindBuffer( gl.ARRAY_BUFFER, verticesBufferId );
@@ -171,43 +194,71 @@ window.onload = function init()
 
     uniformLineFlagLocation = gl.getUniformLocation(program, "lines");
 
-    var eye = vec3(0,0,-6);
+    var eye = vec3(0,1,6);
     var at = vec3(0,0,1);
     var up = vec3(0,1,0);
     var modelViewMatrix = lookAt(eye,at,up);
 
     var aspectRatio = canvas.width/canvas.height;
-    var projectionMatrix = perspective( 30.0, aspectRatio, 1.0, 1000.0 );
+    perspectiveMatrix = perspective( 30.0, aspectRatio, 1.0, 1000.0 );
+    orthoMatrix = ortho(-2, 2, -2, 2, -100, 100);
 
-
+    changeProjection();
     gl.uniformMatrix4fv(uniformModelViewLocation, false, flatten(modelViewMatrix));
-    gl.uniformMatrix4fv(uniformProjectionLocation, false, flatten(projectionMatrix));
 
     renderCube();
 };
 
-
-function renderCube()
+function changeProjection()
 {
+    var perspectiveFlag = document.getElementById("perspectiveCheckBox").checked;
+    var projectionMatrix;
+
+    if(perspectiveFlag)
+    {
+       projectionMatrix = perspectiveMatrix;
+    }
+    else
+    {
+       projectionMatrix = orthoMatrix;
+    }
+    gl.uniformMatrix4fv(uniformProjectionLocation, false, flatten(projectionMatrix));
+}
+
+function renderCube() {
     window.requestAnimationFrame(renderCube);
 
     var verticesBufferId = gl.createBuffer();
-    gl.bindBuffer( gl.ARRAY_BUFFER, verticesBufferId );
-    gl.bufferData( gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW );
+    gl.bindBuffer(gl.ARRAY_BUFFER, verticesBufferId);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
 
-    var vPosition = gl.getAttribLocation( program, "vPosition" );
-    gl.vertexAttribPointer( vPosition, 3, gl.FLOAT, false, 0, 0 );
-    gl.enableVertexAttribArray( vPosition );
+    var vPosition = gl.getAttribLocation(program, "vPosition");
+    gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vPosition);
 
     gl.uniform1i(uniformLineFlagLocation, 0);
 
-    var rotationX = rotate(-45,[1,0,0]);
-    var rotationZ = rotate(rotationAngle,[0,1,0]);
-    rotationAngle += 0.5;
-    if(rotationAngle >= 360) rotationAngle = 0;
+    var worldRotationFlag = document.getElementById("worldRotationCheckBox").checked;
 
-    var rotationMatrix = mult(rotationX,rotationZ);
+    var rotationZ = rotate(rotationAngle, [0, 1, 0]);
+
+    if (worldRotationFlag)
+    {
+        rotationAngle += 0.5;
+        if (rotationAngle >= 360) rotationAngle = 0;
+    }
+
+    var rotationMatrix = rotationZ;
     gl.uniformMatrix4fv(uniformRotationLocation, false, flatten(rotationMatrix));
+
+    var cubeRotationX = rotate(cubeRotationAngles[0],[1,0,0]);
+    var cubeRotationY = rotate(cubeRotationAngles[1],[0,1,0]);
+    var cubeRotationZ = rotate(cubeRotationAngles[2],[0,0,1]);
+    cubeRotationAngles[cubeCurrentRotationAxis] += 0.25;
+
+    var cubeRotation = mult(cubeRotationY,cubeRotationZ);
+    cubeRotation = mult(cubeRotationX,cubeRotation);
+    gl.uniformMatrix4fv(uniformCubeRotationLocation, false, flatten(cubeRotation));
 
     gl.clear( gl.COLOR_BUFFER_BIT  | gl.DEPTH_BUFFER_BIT);
 
@@ -260,11 +311,11 @@ function renderLines()
             0.0,0.0,1.0, //27
 
 
-            1.0,-0.5,-10, //28
-            1.0,-0.5,10, //29
+            1.0,-0.5,-100, //28
+            1.0,-0.5,100, //29
 
-            -1.0,-0.5,-10, //30
-            -1.0,-0.5,10, //31
+            -1.0,-0.5,-100, //30
+            -1.0,-0.5,100, //31
         ];
 
     var linesIndices = new Uint16Array(
