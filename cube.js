@@ -9,8 +9,9 @@ var program;
 var rotationAngle = 0;
 var uniformModelViewLocation;
 var uniformProjectionLocation;
-var uniformRotationLocation;
 var uniformLineFlagLocation;
+var uniformDrawAxisFlagLocation;
+var uniformDrawOriginFlagLocation;
 
 var perspectiveMatrix;
 var orthoMatrix;
@@ -19,17 +20,82 @@ var cubeRotationAngles = [0,0,0];
 var cubeCurrentRotationAxis = 1;
 var uniformCubeRotationLocation;
 
-function worldRotateX()
+var cubeRotationAxisVertices = [];
+var cubeWorldRotationAxis = [];
+
+var eye, at, up;
+
+var cubeAxis =
+[
+   vec4(1, 0, 0, 0),
+   vec4(0, 1, 0, 0),
+   vec4(0, 0, 1, 0)
+];
+
+function multMatrixVector(m, v)
+{
+   for(var j = 0; j < m.length; j++)
+   {
+      if(m[j].length != v.length)
+      {
+          throw "mult(): trying to multiply incompatible matrices";
+      }
+   }
+
+   var result = [];
+
+   for(var i = 0; i < m.length; i++)
+   {
+       var value = 0.0;
+       for(var j = 0; j < v.length; j++)
+       {
+           value += m[i][j]*v[j];
+       }
+       result.push(value);
+   }
+
+    return result;
+}
+
+function updateRotationAxis()
+{
+    var theta = radians(Number(document.getElementById("theta").value));
+    var phi = radians(Number(document.getElementById("phi").value));
+    var radius = 2;
+
+    var vertex1 = [0,0,0];
+    var vertex2 = [0,0,0];
+
+    vertex1[0] = radius*Math.cos(theta) * Math.sin(phi);
+    vertex1[1] = radius*Math.sin(theta) * Math.cos(phi);
+    vertex1[2] = radius*Math.cos(phi);
+
+    vertex2[0] = -vertex1[0];
+    vertex2[1] = -vertex1[1];
+    vertex2[2] = -vertex1[2];
+
+    cubeRotationAxisVertices =
+        [
+            vertex1[0], vertex1[1], vertex1[2],
+            vertex2[0], vertex2[1], vertex2[2]
+        ];
+
+    cubeWorldRotationAxis[0] = vertex1[0] - vertex2[0];
+    cubeWorldRotationAxis[1] = vertex1[1] - vertex2[1];
+    cubeWorldRotationAxis[2] = vertex1[2] - vertex2[2];
+}
+
+function cubeRotateX()
 {
     cubeCurrentRotationAxis = 0;
 }
 
-function worldRotateY()
+function cubeRotateY()
 {
     cubeCurrentRotationAxis = 1;
 }
 
-function worldRotateZ()
+function cubeRotateZ()
 {
     cubeCurrentRotationAxis = 2;
 }
@@ -172,8 +238,9 @@ window.onload = function init()
     // Load the data into the GPU
     uniformModelViewLocation = gl.getUniformLocation(program, "modelViewMatrix");
     uniformProjectionLocation = gl.getUniformLocation(program, "projectionMatrix");
-    uniformRotationLocation = gl.getUniformLocation(program, "rotationMatrix");
     uniformCubeRotationLocation = gl.getUniformLocation(program, "cubeRotation");
+    uniformDrawAxisFlagLocation = gl.getUniformLocation(program, "rotationAxis");
+    uniformDrawOriginFlagLocation = gl.getUniformLocation(program, "originAxis");
 
     var verticesBufferId = gl.createBuffer();
     gl.bindBuffer( gl.ARRAY_BUFFER, verticesBufferId );
@@ -194,9 +261,9 @@ window.onload = function init()
 
     uniformLineFlagLocation = gl.getUniformLocation(program, "lines");
 
-    var eye = vec3(0,1,6);
-    var at = vec3(0,0,1);
-    var up = vec3(0,1,0);
+    eye = vec3(0,1,6);
+    at = vec3(0,0,1);
+    up = vec3(0,1,0);
     var modelViewMatrix = lookAt(eye,at,up);
 
     var aspectRatio = canvas.width/canvas.height;
@@ -206,6 +273,7 @@ window.onload = function init()
     changeProjection();
     gl.uniformMatrix4fv(uniformModelViewLocation, false, flatten(modelViewMatrix));
 
+    updateRotationAxis();
     renderCube();
 };
 
@@ -225,7 +293,9 @@ function changeProjection()
     gl.uniformMatrix4fv(uniformProjectionLocation, false, flatten(projectionMatrix));
 }
 
-function renderCube() {
+function renderCube()
+{
+    gl.uniform1i(uniformDrawAxisFlagLocation, 0);
     window.requestAnimationFrame(renderCube);
 
     var verticesBufferId = gl.createBuffer();
@@ -238,26 +308,33 @@ function renderCube() {
 
     gl.uniform1i(uniformLineFlagLocation, 0);
 
-    var worldRotationFlag = document.getElementById("worldRotationCheckBox").checked;
+    var cameraRotationFlag = document.getElementById("cameraRotationCheckBox").checked;
 
-    var rotationZ = rotate(rotationAngle, [0, 1, 0]);
-
-    if (worldRotationFlag)
+    if (cameraRotationFlag)
     {
         rotationAngle += 0.5;
         if (rotationAngle >= 360) rotationAngle = 0;
+
+        var cameraRotationAngle = radians(rotationAngle);
+        eye = vec3(6*Math.cos(cameraRotationAngle),1,6*Math.sin(cameraRotationAngle));
+        var modelViewMatrix = lookAt(eye,at,up);
+        gl.uniformMatrix4fv(uniformModelViewLocation, false, flatten(modelViewMatrix));
     }
 
-    var rotationMatrix = rotationZ;
-    gl.uniformMatrix4fv(uniformRotationLocation, false, flatten(rotationMatrix));
-
-    var cubeRotationX = rotate(cubeRotationAngles[0],[1,0,0]);
-    var cubeRotationY = rotate(cubeRotationAngles[1],[0,1,0]);
-    var cubeRotationZ = rotate(cubeRotationAngles[2],[0,0,1]);
+    var cubeRotationX = rotate(cubeRotationAngles[0], cubeAxis[0]);
+    var cubeRotationY = rotate(cubeRotationAngles[1], cubeAxis[1]);
+    var cubeRotationZ = rotate(cubeRotationAngles[2], cubeAxis[2]);
+    //var cubeRotationAroundAxis = rotate(rotationAngle,cubeWorldRotationAxis);
     cubeRotationAngles[cubeCurrentRotationAxis] += 0.25;
+    var cubeRotation = mat4();
+    cubeRotation = mult(cubeRotation, cubeRotationX);
+    cubeRotation = mult(cubeRotation, cubeRotationY);
+    cubeRotation = mult(cubeRotation, cubeRotationZ);
 
-    var cubeRotation = mult(cubeRotationY,cubeRotationZ);
-    cubeRotation = mult(cubeRotationX,cubeRotation);
+    /*cubeAxis[0] = multMatrixVector(cubeRotation, cubeAxis[0]);
+    cubeAxis[1] = multMatrixVector(cubeRotation, cubeAxis[1]);
+    cubeAxis[2] = multMatrixVector(cubeRotation, cubeAxis[2]);*/
+
     gl.uniformMatrix4fv(uniformCubeRotationLocation, false, flatten(cubeRotation));
 
     gl.clear( gl.COLOR_BUFFER_BIT  | gl.DEPTH_BUFFER_BIT);
@@ -315,7 +392,7 @@ function renderLines()
             1.0,-0.5,100, //29
 
             -1.0,-0.5,-100, //30
-            -1.0,-0.5,100, //31
+            -1.0,-0.5,100 //31
         ];
 
     var linesIndices = new Uint16Array(
@@ -371,4 +448,58 @@ function renderLines()
     gl.bufferData( gl.ELEMENT_ARRAY_BUFFER,linesIndices, gl.STATIC_DRAW );
 
     gl.drawElements(gl.LINES, linesIndices.length, gl.UNSIGNED_SHORT, 0);
+
+    renderOrigin();
+}
+
+function renderOrigin()
+{
+    var vertices =
+        [
+            0.0,0.0,0.0, //0
+            1.0,0.0,0.0, //1
+            0.0,1.0,0.0, //2
+            0.0,0.0,1.0 //3
+        ];
+
+    var indices = new Uint16Array(
+        [
+            0,1,
+            0,2,
+            0,3
+        ]);
+
+    gl.uniform1i(uniformDrawOriginFlagLocation, 1);
+
+    var verticesBufferId = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, verticesBufferId );
+    gl.bufferData( gl.ARRAY_BUFFER,flatten(vertices), gl.STATIC_DRAW );
+
+    var vPosition = gl.getAttribLocation( program, "vPosition" );
+    gl.vertexAttribPointer( vPosition, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vPosition );
+
+    var elementsBufferId = gl.createBuffer();
+    gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, elementsBufferId );
+    gl.bufferData( gl.ELEMENT_ARRAY_BUFFER,indices, gl.STATIC_DRAW );
+
+    gl.drawElements(gl.LINES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    gl.uniform1i(uniformDrawOriginFlagLocation, 0);
+
+    //renderRotationAxis();
+}
+function renderRotationAxis()
+{
+   gl.uniform1i(uniformDrawAxisFlagLocation, 1);
+
+    var verticesBufferId = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, verticesBufferId );
+    gl.bufferData( gl.ARRAY_BUFFER,flatten(cubeRotationAxisVertices), gl.STATIC_DRAW );
+
+    var vPosition = gl.getAttribLocation( program, "vPosition" );
+    gl.vertexAttribPointer( vPosition, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vPosition );
+
+    gl.drawArrays( gl.LINES, 0, 2);
 }
